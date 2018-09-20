@@ -1,44 +1,5 @@
 import socket
 import threading
-def reply_handler(server,client):
-        while True:
-                try:
-                        data = b""
-                        leng = 4096
-                        while leng == 4096:
-                                dat = server.recv(4096)
-                                leng = len(dat)
-                                data += dat
-                                print(dat.decode().strip(),end="")
-                        print("")
-                        client.send(data)
-                except:
-                        return
-def print_handler(client):
-        try:
-                host = "192.168.122.10" 
-                port = 9100
-                sock = socket.socket(socket.AF_INET,socket.SOCK_STREAM)
-                sock.connect((host, port))
-        except:
-                print("Some error occured...")
-        reply_th = threading.Thread(target=reply_handler,args=(sock,client))
-        reply_th.start()
-        while True:
-                data = b"";
-                recv_len = 1
-                while recv_len:
-                        dat = ""
-                        dat = client.recv(1024*1024)
-                        data += dat
-                        recv_len = len(dat)
-                        #print(dat,end="")
-                print(data)
-                try:
-                        sock.send(data)
-                        print(data)
-                except:
-                        print("Failed to send some data")
 listener = socket.socket(socket.AF_INET,socket.SOCK_STREAM)
 listener.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
 printer_ip = "192.168.122.10"
@@ -65,6 +26,16 @@ try:
         listener.listen(100)
 except:
         input("Could not bind to specified address. Press enter to exit...")
+use_spoofing = input("Use spoofing?(y/n)").strip() == "y"
+if use_spoofing:
+        spoof_user = b"PRINTER"
+        user_in = str(input("Enter username to spoof(Default: PRINTER)")).strip().encode()
+        if user_in == b"":
+                print("Spoofing with default of \"PRINTER\"")
+        else:
+                spoof_user = user_in
+                print("Spoofing with \"",str(user_in)+"\"")
+
 while True:
         client,addr = listener.accept()
         print("Got connection from",addr[0]+":"+str(addr[1]))
@@ -80,6 +51,15 @@ while True:
                 data += current_data
                 print("Just received",recv_len," bytes from client")
         if len(data) > 0:
+                if use_spoofing:
+                        userpos = data.find(b"USERNAME = \"")
+                        first_quote = data[userpos:].find(b"\"")
+                        first_char = userpos + first_quote + 1
+                        second_quote = first_char + data[first_char:].find(b"\"")
+                        original_user = data[first_char:second_quote]
+                        data = data[:first_char]+spoof_user+data[second_quote:]
+                        print("Detected original user:",str(original_user))
+                        print("Spoofing as:",str(spoof_user))
                 print("Total bytes received:",len(data))
                 print("Printing now... Do not close the program!")
                 printer = socket.socket(socket.AF_INET,socket.SOCK_STREAM)
